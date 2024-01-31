@@ -1,0 +1,8 @@
+{
+  "name": "function",
+  "version": "1.0.0",
+  "dependencies": {
+    "aws-sdk": "^2.1546.0",
+    "dotenv": "^16.4.1"
+  }
+}

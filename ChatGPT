@@ -1,0 +1,175 @@
+ChatGPT
+
+I want to create a fictional game, context.
+
+We want to demonstrate how story slicing (inspired by elephant carpaccio from Alistair Cockburn) can deliver value quicker than a traditional waterfall approach.
+
+There will be several teams (product and engineers) who will develop APIs which will receive orders.
+
+For each team, they will register endpoints through a UI (which will be a fictional company just like JustEat or Deliveroo or UberEats),  where orders will be POSTed from First Slice  to each team which will represent a takeaway company.
+
+The full implementation will allow teams to accept orders for delivery. 
+
+contract 
+
+{
+    "orderType": 'telephone' | 'delivery'
+    "payment": "cash" | "online"
+    "paymentToken": string
+    items: [
+        {"cost": number}
+    ],
+    "delivery": {
+        "distance": number
+    }
+}
+
+1. First Slice will distribute 200 orders a minute equally to all registered companies.  This means, the quicker you get to live, the larger the share of orders.
+
+- You will receive 1 point for each successful 200 response to an order, regardless of any additional processing.
+- This promotes a walking skeleton approach.
+
+2. Telephone orders - These represent the easiest orders to process, expected return is a payload which contains a number.  A successful response will give you an additional point. Therefore, accepting and responding to a telephone order will result in 2 points.
+
+example request
+{
+    "orderType": "telephone"
+}
+
+expected response
+{
+    "number": "07921111111" 
+}
+
+3. Deliveries - payment at the door.  These represent orders which your delivery driver will be responsible for collecting payment.  To succesfully process a delivery with cash payment, you must return a calculated order total response, this will be distance multiplied by feePerMile with a multiplier of 0.1 per ordered item plus the sum of all item costs.  Accepting the order (200 response) will earn 1 point and a valid calculated total will earn you 1 additional point.   Opportunity is 2 points for this type of order.
+
+Slice bonus.  If you return a driver name, you will earn an additional point.
+
+For example, 
+
+2 items, priced at £6 each, with a distance of 2 and a feePerMile of .60 will have an orderTotal of 
+
+(sum of item costs) + (delivery distance * fee per mile) * (number of items * delivery item multiplier)
+
+(6 + 6) + (2 * 0.6) + (2 * 0.1).
+
+example request
+{
+    "orderType": "delivery",
+    "payment": "cash" | "online"
+    "paymentToken": string
+    "items": [
+        {
+            "name": string,
+            "cost": number, 
+            "quantity": number
+        }
+    ]
+    "delivery": {
+        "distance": number
+        "feePerMile" number
+        "deliveryItemMultiplier": number
+    }
+}
+
+example response 
+
+{
+    "orderTotal": number
+    "driver": string
+}
+
+4. Tax... HMRC now want a slice...  You're now required to report the VAT for each order.  For every order which contains items and delivery, if you respond with a valid VAT amount, you will earn 1 additional point for that given order.
+
+example request
+{
+    "orderType": "delivery",
+    "payment": "cash" | "online"
+    "items": [
+        {
+            "name": string,
+            "cost": number, 
+            "quantity": number
+        }
+    ]
+    "delivery": {
+        "distance": number
+        "feePerMile" number
+        "deliveryItemMultiplier": number
+    }
+}
+
+example response 
+{
+    "orderTotal": number
+    "driver": string
+    "vat": number
+}
+
+
+4. After a recent incident, and as part of the post-mortem, it was discovered you were accepting orders for orders which were too far for your delivery drivers.  It's been discovered that orders are coming from First-Slice with a distance exceeding 5 miles.  First-Slice, as innovative as they are, are unable to fix their systems for 6 weeks as it was deemed non-critical.  It was agreed between your company and First Slice that you may charge an additonal £2 per mile beyond 5 miles.  You will earn 1 additional point if your response includes the delivery surchage, with the correct calculated value.
+
+example request
+{
+    "orderType": "delivery",
+    "payment": "cash" | "online"
+    "items": [
+        {
+            "name": string,
+            "cost": number, 
+            "quantity": number
+        }
+    ]
+    "delivery": {
+        "distance": number,
+        "feePerMile" number,
+        "deliveryItemMultiplier": number
+    }
+}
+
+example response 
+{
+    "orderTotal": number,
+    "driver": string,
+    "deliverySurcharge": number,
+    "vat": number
+}
+
+
+4. Incident! - There was a discrepicy between First-Slice and your delivered orders on month end reconcile.  Upon investigation, it was discovered someone has been POSTing orders to your public endpoint committing fraud.  As part of an post-mortem, it was agreed the business should imediately validate orders upon request to ensure payment tokens are valid when payment type is of "online".  For every token validated, you will earn 2 additional point per order.  
+
+example request from First-Slice
+{
+    "orderType": "delivery",
+    "payment": "cash" | "online"
+    "items": [
+        {
+            "name": string,
+            "cost": number, 
+            "quantity": number
+        }
+    ]
+    "delivery": {
+        "distance": number,
+        "feePerMile" number,
+        "deliveryItemMultiplier": number
+    }
+}
+
+example response to First-Slice
+{
+    "orderTotal": number,
+    "driver": string,
+    "deliverySurcharge": number,
+    "vat": number
+}
+
+example request to First-Slice to validate tokens
+{
+    "paymentToken": string
+}
+
+example respone from First Slice to validate tokens
+{
+    "status": "settled"
+}

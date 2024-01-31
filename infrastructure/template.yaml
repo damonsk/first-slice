@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  generateOrders:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: generateOrders
+      CodeUri: src/generateOrders
+      Handler: index.handler
+      Runtime: nodejs20.x
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      Environment:
+        Variables:
+          NEWORDERS_TOPIC_NAME: !GetAtt newOrders.TopicName
+          NEWORDERS_TOPIC_ARN: !Ref newOrders
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt newOrders.TopicName
+  generateOrdersLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${generateOrders}
+  newOrders:
+    Type: AWS::SNS::Topic
+    Properties: {}
+  postOrder:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: postOrder
+      #CodeUri: src/postOrder
+      CodeUri: dist/
+      Handler: index.handler
+      Runtime: nodejs20.x
+      TypeScript:
+        TsConfig: tsconfig.json
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      Events:
+        newOrders:
+          Type: SNS
+          Properties:
+            Topic: !Ref newOrders
+            Region: !Select
+              - 3
+              - !Split
+                - ":"
+                - !Ref newOrders
+  postOrderLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${postOrder}
+  FSSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: rate(1 minute)
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt generateOrders.Arn
+        RoleArn: !GetAtt FSScheduleTogenerateOrdersRole.Arn
+  FSScheduleTogenerateOrdersRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt generateOrders.Arn
+  addTeam:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: !Sub
+        - Stack ${AWS::StackName} Function ${ResourceName}
+        - ResourceName: addTeam
+      CodeUri: src/addTeam
+      Handler: index.handler
+      Runtime: nodejs20.x
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - "*"
+      Environment:
+        Variables:
+          TEAMS_BUCKET_NAME: !Ref teams
+          TEAMS_BUCKET_ARN: !GetAtt teams.Arn
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectAcl
+                - s3:GetObjectLegalHold
+                - s3:GetObjectRetention
+                - s3:GetObjectTorrent
+                - s3:GetObjectVersion
+                - s3:GetObjectVersionAcl
+                - s3:GetObjectVersionForReplication
+                - s3:GetObjectVersionTorrent
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:ListBucketVersions
+                - s3:ListMultipartUploadParts
+                - s3:AbortMultipartUpload
+                - s3:DeleteObject
+                - s3:DeleteObjectVersion
+                - s3:PutObject
+                - s3:PutObjectLegalHold
+                - s3:PutObjectRetention
+                - s3:RestoreObject
+              Resource:
+                - !Sub arn:${AWS::Partition}:s3:::${teams}
+                - !Sub arn:${AWS::Partition}:s3:::${teams}/*
+  addTeamLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${addTeam}
+  teams:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-teams-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: alias/aws/s3
+      PublicAccessBlockConfiguration:
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  teamsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref teams
+      PolicyDocument:
+        Id: RequireEncryptionInTransit
+        Version: "2012-10-17"
+        Statement:
+          - Principal: "*"
+            Action: "*"
+            Effect: Deny
+            Resource:
+              - !GetAtt teams.Arn
+              - !Sub ${teams.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
